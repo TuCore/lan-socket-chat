@@ -1,0 +1,363 @@
+# ============================================================================
+#  ChatSystem - CI/CD Pipeline
+#  Professional GitHub Actions workflow for .NET 10 Chat Application
+# ============================================================================
+
+name: CI/CD Pipeline
+
+# ---- Triggers ----
+on:
+  push:
+    branches: [ main, develop, "feature/**", "hotfix/**" ]
+    tags: [ "v*.*.*" ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      publish_artifacts:
+        description: "Publish build artifacts"
+        required: false
+        default: "false"
+        type: boolean
+
+# ---- Permissions ----
+permissions:
+  contents: write
+  pull-requests: read
+  security-events: write
+
+# ---- Concurrency: cancel previous runs on same branch ----
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ---- Environment Variables ----
+env:
+  DOTNET_VERSION: "10.0.x"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  SOLUTION_FILE: ChatSystem.slnx
+  BUILD_CONFIGURATION: Release
+
+# ============================================================================
+#  JOBS
+# ============================================================================
+jobs:
+
+  # ==========================================================================
+  #  Job 1: Build & Restore
+  # ==========================================================================
+  build:
+    name: Build
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_FILE }} -c ${{ env.BUILD_CONFIGURATION }} --no-restore --warnaserror
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            **/bin/${{ env.BUILD_CONFIGURATION }}/**/
+          retention-days: 7
+
+  # ==========================================================================
+  #  Job 2: Code Quality Analysis
+  # ==========================================================================
+  code-quality:
+    name: Code Quality
+    runs-on: windows-latest
+    needs: build
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Check code formatting
+        run: dotnet format ${{ env.SOLUTION_FILE }} --verify-no-changes --verbosity diagnostic
+        continue-on-error: true
+
+      - name: Run .NET analyzers
+        run: dotnet build ${{ env.SOLUTION_FILE }} -c ${{ env.BUILD_CONFIGURATION }} --no-restore /p:EnforceCodeStyleInBuild=true /p:AnalysisLevel=latest
+        continue-on-error: true
+
+  # ==========================================================================
+  #  Job 3: Security Scanning
+  # ==========================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: windows-latest
+    needs: build
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Check for vulnerable NuGet packages
+        run: dotnet list ${{ env.SOLUTION_FILE }} package --vulnerable --include-transitive 2>&1 | tee vulnerability-report.txt
+
+      - name: Check for deprecated NuGet packages
+        run: dotnet list ${{ env.SOLUTION_FILE }} package --deprecated 2>&1 | tee deprecated-report.txt
+        continue-on-error: true
+
+      - name: Check for outdated NuGet packages
+        run: dotnet list ${{ env.SOLUTION_FILE }} package --outdated 2>&1 | tee outdated-report.txt
+        continue-on-error: true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            vulnerability-report.txt
+            deprecated-report.txt
+            outdated-report.txt
+          retention-days: 30
+
+  # ==========================================================================
+  #  Job 4: Publish Artifacts (Self-contained executables)
+  # ==========================================================================
+  publish:
+    name: Publish
+    runs-on: windows-latest
+    needs: [ build, code-quality, security-scan ]
+    if: |
+      github.event_name == 'push' && (
+        startsWith(github.ref, 'refs/tags/v') ||
+        github.ref == 'refs/heads/main'
+      ) || github.event.inputs.publish_artifacts == 'true'
+    timeout-minutes: 20
+
+    strategy:
+      matrix:
+        project:
+          - name: ChatServer
+            path: ChatServer/ChatServer.csproj
+            runtime: win-x64
+          - name: ChatConsole
+            path: ChatConsole/ChatConsole.csproj
+            runtime: win-x64
+          - name: ChatDesktop
+            path: ChatDesktop/ChatDesktop.csproj
+            runtime: win-x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ matrix.project.path }}
+
+      - name: Publish ${{ matrix.project.name }}
+        run: |
+          dotnet publish ${{ matrix.project.path }} `
+            -c ${{ env.BUILD_CONFIGURATION }} `
+            -r ${{ matrix.project.runtime }} `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -o ./publish/${{ matrix.project.name }}
+
+      - name: Upload published artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.project.name }}-${{ matrix.project.runtime }}
+          path: ./publish/${{ matrix.project.name }}/
+          retention-days: 30
+
+  # ==========================================================================
+  #  Job 5: Create GitHub Release (on version tag)
+  # ==========================================================================
+  release:
+    name: Release
+    runs-on: windows-latest
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all published artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Package artifacts into ZIP
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          $projects = @("ChatServer", "ChatConsole", "ChatDesktop")
+          foreach ($project in $projects) {
+            $sourcePath = "./artifacts/${project}-win-x64"
+            $zipName = "${project}-${version}-win-x64.zip"
+            if (Test-Path $sourcePath) {
+              Compress-Archive -Path "${sourcePath}/*" -DestinationPath "./artifacts/${zipName}"
+              Write-Host "Created: ${zipName}"
+            }
+          }
+
+          # Create all-in-one package
+          $allInOnePath = "./artifacts/ChatSystem-${version}-win-x64"
+          New-Item -ItemType Directory -Path $allInOnePath -Force | Out-Null
+          foreach ($project in $projects) {
+            $sourcePath = "./artifacts/${project}-win-x64"
+            if (Test-Path $sourcePath) {
+              $destPath = "${allInOnePath}/${project}"
+              New-Item -ItemType Directory -Path $destPath -Force | Out-Null
+              Copy-Item -Path "${sourcePath}/*" -Destination $destPath -Recurse
+            }
+          }
+          Compress-Archive -Path "${allInOnePath}/*" -DestinationPath "./artifacts/ChatSystem-${version}-win-x64.zip"
+          Write-Host "Created: ChatSystem-${version}-win-x64.zip"
+
+      - name: Generate release notes
+        id: release_notes
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          $notes = @"
+          ## ChatSystem $version
+
+          ### Downloads
+
+          | Package | Description |
+          |---------|-------------|
+          | ``ChatSystem-${version}-win-x64.zip`` | All-in-one package (Server + Console + Desktop) |
+          | ``ChatServer-${version}-win-x64.zip`` | Server only |
+          | ``ChatConsole-${version}-win-x64.zip`` | Console client only |
+          | ``ChatDesktop-${version}-win-x64.zip`` | WPF desktop client only |
+
+          ### How to Run
+
+          1. Download ``ChatSystem-${version}-win-x64.zip``
+          2. Extract and run ``ChatServer/ChatServer.exe``
+          3. Run one or more clients: ``ChatConsole/ChatConsole.exe`` or ``ChatDesktop/ChatDesktop.exe``
+
+          ### Requirements
+
+          - Windows 10/11 (x64)
+          - No .NET SDK required (self-contained)
+          "@
+          $notes | Out-File -FilePath release-notes.md -Encoding utf8
+          Write-Host "Release notes generated"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ChatSystem ${{ github.ref_name }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+          files: |
+            ./artifacts/ChatSystem-*-win-x64.zip
+            ./artifacts/ChatServer-*-win-x64.zip
+            ./artifacts/ChatConsole-*-win-x64.zip
+            ./artifacts/ChatDesktop-*-win-x64.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ==========================================================================
+  #  Job 6: PR Gatekeeper (Status check for branch protection)
+  # ==========================================================================
+  gatekeeper:
+    name: PR Gatekeeper
+    runs-on: ubuntu-latest
+    needs: [ build, code-quality, security-scan ]
+    if: always()
+    timeout-minutes: 5
+
+    steps:
+      - name: Evaluate pipeline results
+        shell: bash
+        run: |
+          echo "========================================"
+          echo "  Pipeline Results Summary"
+          echo "========================================"
+          echo ""
+          echo "  Build:         ${{ needs.build.result }}"
+          echo "  Code Quality:  ${{ needs.code-quality.result }}"
+          echo "  Security Scan: ${{ needs.security-scan.result }}"
+          echo ""
+          echo "========================================"
+
+          # Build MUST pass
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "FAILED: Build did not succeed."
+            exit 1
+          fi
+
+          # Security scan MUST pass
+          if [ "${{ needs.security-scan.result }}" != "success" ]; then
+            echo "FAILED: Security scan did not succeed."
+            exit 1
+          fi
+
+          # Code quality is advisory (warn but don't block)
+          if [ "${{ needs.code-quality.result }}" != "success" ]; then
+            echo "WARNING: Code quality checks had issues. Review recommended."
+          fi
+
+          echo ""
+          echo "All required checks passed. PR is ready for review."

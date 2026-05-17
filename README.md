@@ -1,5 +1,10 @@
 # ChatSystem
 
+[![CI/CD Pipeline](https://github.com/<OWNER>/<REPO>/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/<OWNER>/<REPO>/actions/workflows/ci-cd.yml)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)](https://www.microsoft.com/windows)
+[![License](https://img.shields.io/badge/License-Educational-green)](./README.md)
+
 A real-time chat application built with **.NET 10** using raw **TCP Sockets**. Supports multiple clients chatting simultaneously through a central server.
 
 ---
