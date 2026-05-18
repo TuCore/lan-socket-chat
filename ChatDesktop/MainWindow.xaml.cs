@@ -81,6 +81,7 @@ public partial class MainWindow : Window
             SetStatus($"Connected to {ip}:{port} as '{nickname}'", Brushes.Green);
             btnConnect.Content = "Disconnect";
             btnConnect.IsEnabled = true;
+            btnEmoji.IsEnabled = true;
             txtMessage.IsEnabled = true;
             btnSend.IsEnabled = true;
             txtIP.IsEnabled = false;
@@ -124,6 +125,7 @@ public partial class MainWindow : Window
             SetStatus("Disconnected", Brushes.Gray);
             btnConnect.Content = "Connect";
             btnConnect.IsEnabled = true;
+            btnEmoji.IsEnabled = false;
             txtMessage.IsEnabled = false;
             btnSend.IsEnabled = false;
             txtIP.IsEnabled = true;
@@ -205,6 +207,8 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(message))
             return;
 
+        message = ReplaceEmojis(message);
+
         try
         {
             byte[] data = Encoding.UTF8.GetBytes(message);
@@ -248,6 +252,35 @@ public partial class MainWindow : Window
         if (_isConnected)
         {
             Disconnect();
+        }
+    }
+
+    private string ReplaceEmojis(string text)
+    {
+        return text.Replace(":)", "😊")
+                   .Replace(":(", "😢")
+                   .Replace(":D", "😀")
+                   .Replace(";)", "😉")
+                   .Replace("<3", "❤️")
+                   .Replace("(y)", "👍")
+                   .Replace(":O", "😲");
+    }
+
+    private void BtnEmoji_Click(object sender, RoutedEventArgs e)
+    {
+        popEmoji.IsOpen = true;
+    }
+
+    private void Emoji_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button btn)
+        {
+            string emoji = btn.Content?.ToString() ?? "";
+            int caretIndex = txtMessage.CaretIndex;
+            txtMessage.Text = txtMessage.Text.Insert(caretIndex, emoji);
+            txtMessage.CaretIndex = caretIndex + emoji.Length;
+            txtMessage.Focus();
+            popEmoji.IsOpen = false;
         }
     }
 }

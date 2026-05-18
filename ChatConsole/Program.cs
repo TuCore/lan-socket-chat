@@ -71,6 +71,8 @@ class Program
                 if (string.IsNullOrWhiteSpace(input))
                     continue;
 
+                input = ReplaceEmojis(input);
+
                 // Limit message length to prevent spam/infinite text
                 if (input.Length > 500)
                 {
@@ -134,5 +136,16 @@ class Program
                 _isConnected = false;
             }
         }
+    }
+
+    private static string ReplaceEmojis(string text)
+    {
+        return text.Replace(":)", "😊")
+                   .Replace(":(", "😢")
+                   .Replace(":D", "😀")
+                   .Replace(";)", "😉")
+                   .Replace("<3", "❤️")
+                   .Replace("(y)", "👍")
+                   .Replace(":O", "😲");
     }
 }

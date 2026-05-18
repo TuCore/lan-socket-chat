@@ -24,6 +24,8 @@ for /f "tokens=2" %%i in ('wmic process where "commandline like '%%ChatConsole%%
 for /f "tokens=2" %%i in ('wmic process where "commandline like '%%ChatDesktop%%' and name='dotnet.exe'" get processid 2^>nul ^| findstr /r "[0-9]"') do (
     taskkill /f /pid %%i >nul 2>&1
 )
+REM Shutdown dotnet build servers (MSBuild, VBCSCompiler, etc.) that lock obj files
+dotnet build-server shutdown >nul 2>&1
 timeout /t 2 /nobreak >nul
 echo.
 

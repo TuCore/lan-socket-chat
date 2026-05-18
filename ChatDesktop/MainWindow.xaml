@@ -76,7 +76,7 @@
 
         <!-- Row 3: Chat messages display -->
         <ListBox Grid.Row="3" x:Name="lstMessages" Margin="0,0,0,6"
-                 FontSize="13" FontFamily="Consolas"
+                 FontSize="13" FontFamily="Segoe UI, Segoe UI Emoji"
                  BorderBrush="#CCC" BorderThickness="1"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  HorizontalContentAlignment="Stretch">
@@ -96,13 +96,51 @@
         <!-- Row 4: Message input + Send button -->
         <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBox Grid.Column="0" x:Name="txtMessage" Margin="0,0,8,0"
+            <Button Grid.Column="0" x:Name="btnEmoji" Content="😊" Width="36" Margin="0,0,4,0" 
+                    IsEnabled="False" Click="BtnEmoji_Click" ToolTip="Emojis" Padding="0"
+                    FontFamily="Segoe UI Emoji" FontSize="18" Background="Transparent" BorderThickness="0" Cursor="Hand"/>
+            
+            <Popup x:Name="popEmoji" PlacementTarget="{Binding ElementName=btnEmoji}" Placement="Top" StaysOpen="False">
+                <Border Background="White" BorderBrush="LightGray" BorderThickness="1" Padding="5">
+                    <WrapPanel Width="150">
+                        <WrapPanel.Resources>
+                            <Style TargetType="Button">
+                                <Setter Property="Width" Value="30"/>
+                                <Setter Property="Height" Value="30"/>
+                                <Setter Property="FontSize" Value="18"/>
+                                <Setter Property="FontFamily" Value="Segoe UI Emoji"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                            </Style>
+                        </WrapPanel.Resources>
+                        <Button Content="😀" Click="Emoji_Click"/>
+                        <Button Content="😂" Click="Emoji_Click"/>
+                        <Button Content="😊" Click="Emoji_Click"/>
+                        <Button Content="😍" Click="Emoji_Click"/>
+                        <Button Content="👍" Click="Emoji_Click"/>
+                        <Button Content="❤️" Click="Emoji_Click"/>
+                        <Button Content="🔥" Click="Emoji_Click"/>
+                        <Button Content="🎉" Click="Emoji_Click"/>
+                        <Button Content="😎" Click="Emoji_Click"/>
+                        <Button Content="🤔" Click="Emoji_Click"/>
+                        <Button Content="😢" Click="Emoji_Click"/>
+                        <Button Content="😡" Click="Emoji_Click"/>
+                        <Button Content="✨" Click="Emoji_Click"/>
+                        <Button Content="🚀" Click="Emoji_Click"/>
+                        <Button Content="💯" Click="Emoji_Click"/>
+                    </WrapPanel>
+                </Border>
+            </Popup>
+
+            <TextBox Grid.Column="1" x:Name="txtMessage" Margin="0,0,8,0"
                      IsEnabled="False" KeyDown="TxtMessage_KeyDown" MaxLength="500"/>
-            <Button Grid.Column="1" x:Name="btnSend" Content="Send" Width="80"
+            <Button Grid.Column="2" x:Name="btnSend" Content="Send" Width="80"
                     IsEnabled="False" Click="BtnSend_Click"/>
         </Grid>
     </Grid>
