@@ -4,6 +4,28 @@ echo ============================================
 echo   ChatSystem - Demo Launcher
 echo ============================================
 echo.
+REM ---- Step 0: Cleanup ----
+echo [*] Cleaning up previous background processes...
+REM Kill cmd windows by title (from previous run)
+taskkill /f /fi "WINDOWTITLE eq ChatServer*" >nul 2>&1
+taskkill /f /fi "WINDOWTITLE eq ChatConsole*" >nul 2>&1
+taskkill /f /fi "WINDOWTITLE eq ChatDesktop*" >nul 2>&1
+REM Kill compiled executables (if any)
+taskkill /f /im ChatServer.exe >nul 2>&1
+taskkill /f /im ChatConsole.exe >nul 2>&1
+taskkill /f /im ChatDesktop.exe >nul 2>&1
+REM Kill dotnet.exe processes running our projects (the actual processes from "dotnet run")
+for /f "tokens=2" %%i in ('wmic process where "commandline like '%%ChatServer%%' and name='dotnet.exe'" get processid 2^>nul ^| findstr /r "[0-9]"') do (
+    taskkill /f /pid %%i >nul 2>&1
+)
+for /f "tokens=2" %%i in ('wmic process where "commandline like '%%ChatConsole%%' and name='dotnet.exe'" get processid 2^>nul ^| findstr /r "[0-9]"') do (
+    taskkill /f /pid %%i >nul 2>&1
+)
+for /f "tokens=2" %%i in ('wmic process where "commandline like '%%ChatDesktop%%' and name='dotnet.exe'" get processid 2^>nul ^| findstr /r "[0-9]"') do (
+    taskkill /f /pid %%i >nul 2>&1
+)
+timeout /t 2 /nobreak >nul
+echo.
 
 REM ---- Step 1: Build ----
 echo [1/3] Building solution...

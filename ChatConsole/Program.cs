@@ -71,6 +71,13 @@ class Program
                 if (string.IsNullOrWhiteSpace(input))
                     continue;
 
+                // Limit message length to prevent spam/infinite text
+                if (input.Length > 500)
+                {
+                    Console.WriteLine("[System] Message too long. Truncating to 500 characters.");
+                    input = input.Substring(0, 500);
+                }
+
                 try
                 {
                     byte[] data = Encoding.UTF8.GetBytes(input);

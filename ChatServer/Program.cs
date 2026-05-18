@@ -60,6 +60,7 @@ class Program
         NetworkStream stream = client.GetStream();
         byte[] buffer = new byte[4096];
         string? nickname = null;
+        bool isValidClient = false;
 
         try
         {
@@ -68,8 +69,26 @@ class Program
             if (bytesRead > 0)
             {
                 nickname = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
+
+                // Anti-Scanner (e.g., Nmap) check
+                // Check if it's empty, too long, contains control characters, or looks like an HTTP request
+                if (string.IsNullOrEmpty(nickname) || nickname.Length > 50 || 
+                    nickname.Any(char.IsControl) || nickname.StartsWith("GET ") || nickname.StartsWith("POST "))
+                {
+                    Console.WriteLine($"[!] Scanner/Invalid packet detected from {clientId}. Dropping connection.");
+                    client.Client.Close(); // Close socket immediately without sending any data back
+                    return;
+                }
+
+                isValidClient = true;
                 Console.WriteLine($"[*] {clientId} set nickname: {nickname}");
                 await BroadcastAsync($"[Server] {nickname} has joined the chat!", clientId);
+            }
+            else
+            {
+                // No data received initially, close immediately
+                client.Client.Close();
+                return;
             }
 
             // Continuously read messages from this client
@@ -83,6 +102,12 @@ class Program
                 if (string.IsNullOrEmpty(message))
                     continue;
 
+                // Enforce message length limit on the server side
+                if (message.Length > 500)
+                {
+                    message = message.Substring(0, 500) + "... [truncated]";
+                }
+
                 string displayName = nickname ?? clientId;
                 string fullMessage = $"{displayName}: {message}";
 
@@ -94,16 +119,24 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[!] Error with {nickname ?? clientId}: {ex.Message}");
+            if (isValidClient)
+            {
+                Console.WriteLine($"[!] Error with {nickname ?? clientId}: {ex.Message}");
+            }
         }
         finally
         {
             // Cleanup when client disconnects
             _clients.TryRemove(clientId, out _);
             client.Close();
-            string displayName = nickname ?? clientId;
-            Console.WriteLine($"[-] {displayName} disconnected. (Total: {_clients.Count})");
-            await BroadcastAsync($"[Server] {displayName} has left the chat.", clientId);
+            
+            // Only broadcast leave message if it was a valid, verified client
+            if (isValidClient)
+            {
+                string displayName = nickname ?? clientId;
+                Console.WriteLine($"[-] {displayName} disconnected. (Total: {_clients.Count})");
+                await BroadcastAsync($"[Server] {displayName} has left the chat.", clientId);
+            }
         }
     }
 

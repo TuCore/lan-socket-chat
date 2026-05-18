@@ -78,13 +78,19 @@
         <ListBox Grid.Row="3" x:Name="lstMessages" Margin="0,0,0,6"
                  FontSize="13" FontFamily="Consolas"
                  BorderBrush="#CCC" BorderThickness="1"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 HorizontalContentAlignment="Stretch">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="Padding" Value="4,2"/>
                     <Setter Property="IsHitTestVisible" Value="False"/>
                 </Style>
             </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
         </ListBox>
 
         <!-- Row 4: Message input + Send button -->
@@ -95,7 +101,7 @@
             </Grid.ColumnDefinitions>
 
             <TextBox Grid.Column="0" x:Name="txtMessage" Margin="0,0,8,0"
-                     IsEnabled="False" KeyDown="TxtMessage_KeyDown"/>
+                     IsEnabled="False" KeyDown="TxtMessage_KeyDown" MaxLength="500"/>
             <Button Grid.Column="1" x:Name="btnSend" Content="Send" Width="80"
                     IsEnabled="False" Click="BtnSend_Click"/>
         </Grid>
